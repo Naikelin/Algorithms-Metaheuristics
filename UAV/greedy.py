@@ -1,4 +1,5 @@
 import argparse
+import matplotlib.pyplot as plt
 
 class UAVManager:
     def __init__(self, file_path):
@@ -14,14 +15,15 @@ class UAVManager:
             D = int(lines[0].strip())
             current_line = 1
 
-            for _ in range(D):
+            for i in range(D):
                 aterrizaje_info = list(map(float, lines[current_line].strip().split()))
                 uav = {
+                    'index': i,
                     'tiempo_aterrizaje_menor': aterrizaje_info[0],
                     'tiempo_aterrizaje_ideal': aterrizaje_info[1],
                     'tiempo_aterrizaje_maximo': aterrizaje_info[2],
                     'tiempos_aterrizaje': [],
-                    'orden': 0 
+                    'orden': None 
                 }
                 current_line += 1
                 
@@ -39,33 +41,55 @@ class UAVManager:
     Para cada UAV, intentar asignar el tiempo de aterrizaje lo más cercano posible al tiempo preferente sin violar los límites de tiempo mínimo y máximo. Al hacer esto, minimizamos las penalizaciones por unidad de tiempo sobre o bajo el tiempo preferente.
     Calcular el costo total sumando las penalizaciones por unidad de tiempo sobre o bajo el tiempo preferente para todos los UAVs.
     """
-    
+
     def solve_greedy(self):
-        sorted_uav_data = sorted(self.uav_data, key=lambda x: x['tiempo_aterrizaje_ideal'])
+        # Ordenar los UAVs por tiempo_aterrizaje_ideal en orden ascendente
+        self.uav_data.sort(key=lambda uav: uav['tiempo_aterrizaje_ideal'])
 
-        for i, uav in enumerate(sorted_uav_data):
-            menor = uav['tiempo_aterrizaje_menor']
-            ideal = uav['tiempo_aterrizaje_ideal']
-            maximo = uav['tiempo_aterrizaje_maximo']
-            tiempos_aterrizaje = uav['tiempos_aterrizaje']
+        for i, uav in enumerate(self.uav_data):
+            assigned_time = -1
+            min_penalty = float('inf')
+            for time in uav['tiempos_aterrizaje']:
+                penalty = abs(time - uav['tiempo_aterrizaje_ideal'])
+                if penalty < min_penalty:
+                    min_penalty = penalty
+                    assigned_time = time
 
-            best_time = None
-            best_penalty = float('inf')
-            for tiempo in tiempos_aterrizaje:
-                if menor <= tiempo <= maximo:
-                    penalty = abs(tiempo - ideal)
-                    if penalty < best_penalty:
-                        best_time = tiempo
-                        best_penalty = penalty
+            # Ajustar el tiempo de aterrizaje asignado para que este dentro de los limites si es necesario
+            assigned_time = max(uav['tiempo_aterrizaje_menor'], min(assigned_time, uav['tiempo_aterrizaje_maximo']))
 
-            if best_time is not None:
-                self.total_cost += best_penalty
-                uav['orden'] = i + 1
+            uav['orden'] = i
+            uav['tiempo_aterrizaje_asignado'] = assigned_time
+            self.total_cost += abs(assigned_time - uav['tiempo_aterrizaje_ideal'])
 
     def display_data(self):
-        for uav in self.uav_data:
-            print(f"UAV orden {uav['orden']}:", uav)
         print("Costo total:", self.total_cost)
+        sorted_uav_data = sorted(self.uav_data, key=lambda uav: uav['orden'])
+        print("Orden de aterrizaje:", [uav['index'] for uav in sorted_uav_data])
+
+    def plot_schedule(self):
+        fig, ax = plt.subplots()
+
+        for uav in self.uav_data:
+            y = uav['orden']
+            
+            # Dibujar puntos en el tiempo minimo, tiempo ideal, tiempo maximo y tiempo de aterrizaje asignado
+            ax.plot(uav['tiempo_aterrizaje_menor'], y, marker='o', markersize=6, color='red')
+            ax.plot(uav['tiempo_aterrizaje_ideal'], y, marker='o', markersize=6, color='green')
+            ax.plot(uav['tiempo_aterrizaje_maximo'], y, marker='o', markersize=6, color='blue')
+            ax.plot(uav['tiempo_aterrizaje_asignado'], y, marker='o', markersize=8, color='black')
+            
+            # Mostrar los valores del tiempo minimo, tiempo ideal, tiempo maximo y tiempo de aterrizaje asignado
+            ax.text(uav['tiempo_aterrizaje_menor'], y, f"{uav['tiempo_aterrizaje_menor']:.1f}", ha='right', va='bottom', color='red')
+            ax.text(uav['tiempo_aterrizaje_ideal'], y, f"{uav['tiempo_aterrizaje_ideal']:.1f}", ha='right', va='bottom', color='green')
+            ax.text(uav['tiempo_aterrizaje_maximo'], y, f"{uav['tiempo_aterrizaje_maximo']:.1f}", ha='left', va='bottom', color='blue')
+            ax.text(uav['tiempo_aterrizaje_asignado'], y, f"{uav['tiempo_aterrizaje_asignado']:.1f}", ha='left', va='bottom', color='black')
+
+        ax.set_xlabel('Tiempo')
+        ax.set_ylabel('Orden de aterrizaje')
+        ax.set_title('Programacion de aterrizaje de UAVs')
+        plt.tight_layout()
+        plt.show()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Optimizar el orden de aterrizaje de UAVs.")
@@ -74,3 +98,4 @@ if __name__ == "__main__":
 
     uav_manager = UAVManager(args.file_path)
     uav_manager.display_data()
+    uav_manager.plot_schedule()
