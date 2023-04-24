@@ -73,6 +73,12 @@ class UAVManager:
         print("Costo total:", self.total_cost)
         sorted_uav_data = sorted(self.uav_data, key=lambda uav: uav['orden'])
         print("Orden de aterrizaje:", [uav['index'] for uav in sorted_uav_data])
+        
+    def display_initial_solution(self):
+        print("Solución inicial:")
+        for uav in self.uav_data:
+            print(f"UAV {uav['orden']}: Tiempo de aterrizaje asignado: {uav['tiempo_aterrizaje_asignado']}")
+        print("Costo total inicial:", self.total_cost)
 
     def plot_schedule(self):
         fig, ax = plt.subplots()

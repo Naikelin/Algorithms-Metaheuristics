@@ -48,7 +48,8 @@ class UAVManager:
 
     def solve_greedy_stochastic(self):
         # Establecer la semilla para la generación de números aleatorios
-        np.random.seed(self.seed)
+        rng = np.random.default_rng(self.seed)
+
 
         # Ordenar los UAVs por su tiempo de aterrizaje ideal en orden ascendente
         sorted_uav_data = sorted(self.uav_data, key=lambda x: x['tiempo_aterrizaje_ideal'])
@@ -67,7 +68,7 @@ class UAVManager:
             probabilities = [p / sum(probabilities) for p in probabilities]
 
             # Seleccionar uno de los k UAVs más cercanos al tiempo ideal actual
-            idx = np.random.choice(range(k), p=probabilities)
+            idx = rng.choice(range(k), p=probabilities)
             selected_uav = sorted_uav_data.pop(idx)
 
             # Encontrar el tiempo de aterrizaje más cercano al tiempo ideal sin violar los límites de tiempo mínimo y máximo
@@ -122,6 +123,11 @@ if __name__ == "__main__":
     parser.add_argument("seed", type=int, default=0, help="Semilla para la generacion de numeros aleatorios")
     args = parser.parse_args()
 
+    """  
+    La semilla influye en los resultados al controlar la secuencia de números aleatorios utilizada en el proceso de selección de UAVs,
+    lo que a su vez afecta la solución encontrada por el algoritmo estocástico.
+      Al cambiar la semilla, es posible explorar diferentes soluciones y encontrar aquellas que sean más adecuadas para el problema en cuestión. """
+    
     uav_manager = UAVManager(args.file_path, args.seed)
     uav_manager.display_data()
     uav_manager.plot_schedule()
