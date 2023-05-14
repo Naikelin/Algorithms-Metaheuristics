@@ -1,5 +1,6 @@
 import argparse
 import matplotlib.pyplot as plt
+import time
 
 class UAVManager:
     def __init__(self, file_path):
@@ -109,6 +110,10 @@ if __name__ == "__main__":
     parser.add_argument("file_path", type=str, help="Ruta del archivo de datos de los UAVs")
     args = parser.parse_args()
 
+    start_time = time.time()
     uav_manager = UAVManager(args.file_path)
+    end_time = time.time()
+    print(f"Tiempo de ejecución completa: {end_time - start_time:.4f} segundos")
+
     uav_manager.display_data()
     uav_manager.plot_schedule()
