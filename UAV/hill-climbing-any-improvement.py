@@ -1,19 +1,17 @@
 import argparse
-import random
 import matplotlib.pyplot as plt
+import time
+import numpy as np
 
 class UAVManager:
-    def __init__(self, file_path):
+    def __init__(self, file_path, seed):
         self.file_path = file_path
         self.uav_data = []
         self.total_cost = 0
         self.read_file()
-        self.solve_greedy()
+        self.seed = seed
 
-    '''
-        Utils
-    '''
-
+    """ utils """
     def read_file(self):
         with open(self.file_path, 'r') as file:
             lines = file.readlines()
@@ -41,22 +39,23 @@ class UAVManager:
                 uav['tiempos_aterrizaje'] = tiempos_aterrizaje
                 self.uav_data.append(uav)
 
+    def get_random_neighbor(self, order):
+        neighbor = order[:]
+        # this line to np i, j = random.sample(range(len(neighbor)), 2)
+        i, j = np.random.choice(len(neighbor), 2, replace=False)
+        neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
+        return neighbor
+    
     def display_data(self):
         print("Costo total:", self.total_cost)
         sorted_uav_data = sorted(self.uav_data, key=lambda uav: uav['orden'])
         print("Orden de aterrizaje:", [uav['index'] for uav in sorted_uav_data])
         
-    def calculate_cost(self, order):
-        total_cost = 0
-        time = 0
-        for i in order:
-            uav = self.uav_data[i]
-            closest_time = max(uav['tiempo_aterrizaje_menor'], min(uav['tiempo_aterrizaje_maximo'], max(time, uav['tiempo_aterrizaje_ideal'])))
-            penalty = abs(closest_time - uav['tiempo_aterrizaje_ideal'])
-            total_cost += penalty
-            time = closest_time + uav['tiempos_aterrizaje'][i]
-        return total_cost
-
+    def display_initial_solution(self):
+        print("Solución inicial:")
+        for uav in self.uav_data:
+            print(f"UAV {uav['orden']}: Tiempo de aterrizaje asignado: {uav['tiempo_aterrizaje_asignado']}")
+        print("Costo total inicial:", self.total_cost)
 
     def plot_schedule(self):
         fig, ax = plt.subplots()
@@ -82,16 +81,19 @@ class UAVManager:
         plt.tight_layout()
         plt.show()
 
-    def get_random_neighbor(self, order):
-        neighbor = order[:]
-        i, j = random.sample(range(len(neighbor)), 2)
-        neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
-        return neighbor
+    def calculate_cost(self, order):
+        total_cost = 0
+        time = 0
+        for i in order:
+            uav = self.uav_data[i]
+            closest_time = max(uav['tiempo_aterrizaje_menor'], min(uav['tiempo_aterrizaje_maximo'], max(time, uav['tiempo_aterrizaje_ideal'])))
+            penalty = abs(closest_time - uav['tiempo_aterrizaje_ideal'])
+            total_cost += penalty
+            time = closest_time + uav['tiempos_aterrizaje'][i]
+        return total_cost
 
     """ 
-    Ordenar los UAVs por su tiempo de aterrizaje preferente (tiempo_aterrizaje_ideal) en orden ascendente. De esta manera, nos aseguramos de que los UAVs con tiempos preferentes más cortos sean atendidos primero.
-    Para cada UAV, intentar asignar el tiempo de aterrizaje lo más cercano posible al tiempo preferente sin violar los límites de tiempo mínimo y máximo. Al hacer esto, minimizamos las penalizaciones por unidad de tiempo sobre o bajo el tiempo preferente.
-    Calcular el costo total sumando las penalizaciones por unidad de tiempo sobre o bajo el tiempo preferente para todos los UAVs.
+    greedys
     """
 
     def solve_greedy(self):
@@ -120,6 +122,47 @@ class UAVManager:
 
             # Asignar el orden de aterrizaje
             uav['orden'] = i
+
+    def solve_greedy_stochastic(self):
+        # Establecer la semilla para la generación de números aleatorios
+        rng = np.random.default_rng(self.seed)
+
+        # Ordenar los UAVs por su tiempo de aterrizaje ideal en orden ascendente
+        sorted_uav_data = sorted(self.uav_data, key=lambda x: x['tiempo_aterrizaje_ideal'])
+
+        # Inicializar variables
+        self.total_cost = 0
+        time = 0
+
+        # Iterar sobre los UAVs
+        for i in range(len(self.uav_data)):
+            # Obtener el valor mínimo entre la longitud de la lista ordenada y un número fijo (p. ej., 3)
+            k = min(len(sorted_uav_data), 3)
+
+            # Crear una distribución de probabilidad exponencial para favorecer a los primeros UAVs
+            probabilities = [np.exp(-0.5 * j) for j in range(k)]
+            probabilities = [p / sum(probabilities) for p in probabilities]
+
+            # Seleccionar uno de los k UAVs más cercanos al tiempo ideal actual
+            idx = rng.choice(range(k), p=probabilities)
+            selected_uav = sorted_uav_data.pop(idx)
+
+            # Encontrar el tiempo de aterrizaje más cercano al tiempo ideal sin violar los límites de tiempo mínimo y máximo
+            closest_time = max(selected_uav['tiempo_aterrizaje_menor'], min(selected_uav['tiempo_aterrizaje_maximo'], max(time, selected_uav['tiempo_aterrizaje_ideal'])))
+
+            # Calcular la penalización asociada a este tiempo de aterrizaje
+            penalty = abs(closest_time - selected_uav['tiempo_aterrizaje_ideal'])
+
+            # Actualizar el tiempo de aterrizaje asignado y la penalización para este UAV
+            selected_uav['tiempo_aterrizaje_asignado'] = closest_time
+            selected_uav['penalizacion'] = penalty
+
+            # Actualizar el costo total y el tiempo actual
+            self.total_cost += penalty
+            time = closest_time + selected_uav['tiempos_aterrizaje'][i]
+
+            # Asignar el orden de aterrizaje
+            selected_uav['orden'] = i
 
     def is_feasible(self, order):
         time = 0
@@ -187,16 +230,30 @@ class UAVManager:
         self.solve_hill_climbing(max_iterations=max_iterations, max_no_improvement=max_no_improvement)
         self.display_data()
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Optimizar el orden de aterrizaje de UAVs.")
     parser.add_argument("file_path", type=str, help="Ruta del archivo de datos de los UAVs")
+    parser.add_argument("--algorithm", type=str, default="greedy", help="Algoritmo a utilizar para resolver el problema [greedy, greedy-stochastic]")
+    parser.add_argument("--seed", type=int, default=0, help="Semilla para el generador de numeros aleatorios")
     args = parser.parse_args()
 
-    uav_manager = UAVManager(args.file_path)
-    print("Solución Greedy:")
-    uav_manager.display_data()
-    uav_manager.plot_schedule()
 
-    print("\nSolución Hill Climbing:")
+    uav_manager = UAVManager(args.file_path, args.seed)
+
+    # Initial solution (greedy)
+    start_time = time.time()
+    if args.algorithm == "greedy":
+        print("Algoritmo: Greedy")
+        uav_manager.solve_greedy()
+    elif args.algorithm == "greedy-stochastic":
+        print("Algoritmo: Greedy Stochastic")
+        uav_manager.solve_greedy_stochastic()
+    end_time = time.time()
+    print(f"Tiempo de ejecución completa: {end_time - start_time:.4f} segundos")
+
+    uav_manager.display_data()
+
+    # hill climbing (any improvement)
+    print("Algoritmo: Hill Climbing desde Greedy")
     uav_manager.run_hill_climbing()
-    uav_manager.plot_schedule()
