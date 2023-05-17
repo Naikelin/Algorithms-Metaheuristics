@@ -92,6 +92,15 @@ class UAVManager:
             time = closest_time + uav['tiempos_aterrizaje'][i]
         return total_cost
 
+    def get_all_neighbors(self, order):
+        neighbors = []
+        for i in range(len(order)):
+            for j in range(i + 1, len(order)):
+                neighbor = order[:]
+                neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
+                neighbors.append(neighbor)
+        return neighbors
+
     """ 
     greedys
     """

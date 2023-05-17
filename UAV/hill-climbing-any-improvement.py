@@ -7,6 +7,7 @@ class UAVManager:
     def __init__(self, file_path, seed):
         self.file_path = file_path
         self.uav_data = []
+        self.total_cost_greedy = 0
         self.total_cost = 0
         self.read_file()
         self.seed = seed
@@ -41,13 +42,15 @@ class UAVManager:
 
     def get_random_neighbor(self, order):
         neighbor = order[:]
-        # this line to np i, j = random.sample(range(len(neighbor)), 2)
-        i, j = np.random.choice(len(neighbor), 2, replace=False)
-        neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
+        i, j = np.sort(np.random.choice(len(neighbor), 2, replace=False))
+        neighbor[i:j+1] = reversed(neighbor[i:j+1])
         return neighbor
     
+
+    
     def display_data(self):
-        print("Costo total:", self.total_cost)
+        print("Costo greedy:", self.total_cost_greedy)
+        print("Costo HC:", self.total_cost)
         sorted_uav_data = sorted(self.uav_data, key=lambda uav: uav['orden'])
         print("Orden de aterrizaje:", [uav['index'] for uav in sorted_uav_data])
         
@@ -101,7 +104,7 @@ class UAVManager:
         sorted_uav_data = sorted(self.uav_data, key=lambda x: x['tiempo_aterrizaje_ideal'])
 
         # Inicializar variables
-        self.total_cost = 0
+        self.total_cost_greedy = 0
         time = 0
 
         # Iterar sobre los UAVs ordenados
@@ -117,7 +120,7 @@ class UAVManager:
             uav['penalizacion'] = penalty
 
             # Actualizar el costo total y el tiempo actual
-            self.total_cost += penalty
+            self.total_cost_greedy += penalty
             time = closest_time + uav['tiempos_aterrizaje'][i]
 
             # Asignar el orden de aterrizaje
@@ -131,7 +134,7 @@ class UAVManager:
         sorted_uav_data = sorted(self.uav_data, key=lambda x: x['tiempo_aterrizaje_ideal'])
 
         # Inicializar variables
-        self.total_cost = 0
+        self.total_cost_greedy = 0
         time = 0
 
         # Iterar sobre los UAVs
@@ -158,7 +161,7 @@ class UAVManager:
             selected_uav['penalizacion'] = penalty
 
             # Actualizar el costo total y el tiempo actual
-            self.total_cost += penalty
+            self.total_cost_greedy += penalty
             time = closest_time + selected_uav['tiempos_aterrizaje'][i]
 
             # Asignar el orden de aterrizaje
@@ -176,14 +179,14 @@ class UAVManager:
 
     def solve_hill_climbing(self, max_iterations=1000, max_no_improvement=100, max_attempts=10):
         current_order = [uav['orden'] for uav in self.uav_data]
-        current_cost = self.total_cost
+        current_cost = self.total_cost_greedy
 
         best_order = current_order[:]
         best_cost = current_cost
 
         no_improvement_counter = 0
 
-        for iteration in range(max_iterations):
+        for _ in range(max_iterations):
             if no_improvement_counter >= max_no_improvement:
                 break
 
@@ -236,8 +239,17 @@ if __name__ == "__main__":
     parser.add_argument("file_path", type=str, help="Ruta del archivo de datos de los UAVs")
     parser.add_argument("--algorithm", type=str, default="greedy", help="Algoritmo a utilizar para resolver el problema [greedy, greedy-stochastic]")
     parser.add_argument("--seed", type=int, default=0, help="Semilla para el generador de numeros aleatorios")
+    parser.add_argument("--explore-seeds", action="store_true", help="Explorar diferentes semillas para el generador de numeros aleatorios")
     args = parser.parse_args()
 
+    if (args.explore_seeds):
+        for seed in range(1000):
+            print(f"Semilla: {seed}")
+            uav_manager = UAVManager(args.file_path, seed)
+            uav_manager.solve_greedy_stochastic()
+            uav_manager.run_hill_climbing()
+            print()
+        exit()
 
     uav_manager = UAVManager(args.file_path, args.seed)
 
@@ -252,8 +264,5 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"Tiempo de ejecución completa: {end_time - start_time:.4f} segundos")
 
-    uav_manager.display_data()
-
     # hill climbing (any improvement)
-    print("Algoritmo: Hill Climbing desde Greedy")
     uav_manager.run_hill_climbing()
